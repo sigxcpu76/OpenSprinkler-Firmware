@@ -140,7 +140,7 @@ typedef unsigned long ulong;
 
 /** Default string option values */
 #define DEFAULT_PASSWORD          "a6d82bced638de3def1e9bbb4983225c"  // md5 of 'opendoor'
-#define DEFAULT_LOCATION          "44.99774,25.97470"	// Boston,MA
+#define DEFAULT_LOCATION          "42.36,-71.06"// Boston,MA
 #define DEFAULT_JAVASCRIPT_URL    "https://ui.opensprinkler.com/js"
 #define DEFAULT_WEATHER_URL       "weather.opensprinkler.com"
 #define DEFAULT_IFTTT_URL         "maker.ifttt.com"
