@@ -1,3 +1,15 @@
+==== OpenSprinkler Firmware for ESP8266 + 8 relay board ===
+You can buy this board here: 
+
+https://www.banggood.com/5V-or-7-28V-Power-Supply-8-Channel-ESP8266-WIFI-8-way-Relay-Module-ESP-12F-Development-Board-Secondary-Development-Board-p-1833055.html
+
+There are changes from the main firmware so this is not "unified" anymore:
+
+- implemented a NOOP display to avoid fiddly with I2C
+- commented out I2C related sections
+- commented out button related sections
+
+
 ============================================
 ==== OpenSprinkler AVR/RPI/BBB Firmware ====
 ============================================
