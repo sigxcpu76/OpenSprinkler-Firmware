@@ -41,6 +41,9 @@ void write_log(byte type, ulong curr_time);
 //static char website[] PROGMEM = DEFAULT_WEATHER_URL ;
 
 static void getweather_callback(char* buffer) {
+	DEBUG_PRINT("weather reply: ");
+	DEBUG_PRINTLN(buffer);
+
 	char *p = buffer;
 	/* scan the buffer until the first & symbol */
 	while(*p && *p!='&') {
@@ -49,7 +52,10 @@ static void getweather_callback(char* buffer) {
 	if (*p != '&')	return;
 	int v;
 	bool save_nvdata = false;
-	
+
+	DEBUG_PRINT("trimmed weather reply: ");
+	DEBUG_PRINTLN(p);
+
 	// first check errCode, only update lswc timestamp if errCode is 0
 	if (findKeyVal(p, tmp_buffer, TMP_BUFFER_SIZE, PSTR("errCode"), true)) {
 		wt_errCode = atoi(tmp_buffer);
@@ -97,6 +103,8 @@ static void getweather_callback(char* buffer) {
 	if (findKeyVal(p, tmp_buffer, TMP_BUFFER_SIZE, PSTR("tz"), true)) {
 		v = atoi(tmp_buffer);
 		if (v>=0 && v<= 108) {
+			DEBUG_PRINT("received timezone: ");
+			DEBUG_PRINTLN(v);
 			if (v != os.iopts[IOPT_TIMEZONE]) {
 				// if timezone changed, save change and force ntp sync
 				os.iopts[IOPT_TIMEZONE] = v;
@@ -129,10 +137,22 @@ static void getweather_callback_with_peel_header(char* buffer) {
 	getweather_callback(buffer);
 }
 
+int GetWeather1();
 void GetWeather() {
+	for(int i = 0; i < 3; i++) {
+		int ret = GetWeather1();
+		if (ret >= 0) {
+			return;
+		}
+
+		delay(1000);		
+	}
+}
+
+int GetWeather1() {
 #if defined(ESP8266)
 	if(!m_server) {
-		if (os.state!=OS_STATE_CONNECTED || WiFi.status()!=WL_CONNECTED) return;
+		if (os.state!=OS_STATE_CONNECTED || WiFi.status()!=WL_CONNECTED) return -1;
 	}
 #endif
 	// use temp buffer to construct get command
@@ -176,9 +196,14 @@ void GetWeather() {
 	strcat(ether_buffer, "\r\n\r\n");
 
 	wt_errCode = HTTP_RQT_NOT_RECEIVED;
-	int ret = os.send_http_request(host, ether_buffer, getweather_callback_with_peel_header);
+	int ret = os.send_http_request(host, ether_buffer, getweather_callback_with_peel_header, 5000);
 	if(ret!=HTTP_RQT_SUCCESS) {
 		if(wt_errCode < 0) wt_errCode = ret;
 		// if wt_errCode > 0, the call is successful but weather script may return error
+		DEBUG_PRINT("HTTP error: ");
+		DEBUG_PRINTLN(wt_errCode);
+		return wt_errCode;
 	}
+
+	return 0;
 }

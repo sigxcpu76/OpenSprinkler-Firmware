@@ -71,7 +71,7 @@ extern char tmp_buffer[];
 extern char ether_buffer[];
 
 #if defined(ESP8266)
-	SSD1306Display OpenSprinkler::lcd(0x3c, SDA, SCL);
+	NOOPDisplay OpenSprinkler::lcd(0x3c, SDA, SCL);
 	byte OpenSprinkler::state = OS_STATE_INITIAL;
 	byte OpenSprinkler::prev_station_bits[MAX_NUM_BOARDS];
 	IOEXP* OpenSprinkler::expanders[MAX_NUM_BOARDS/2];
@@ -408,6 +408,15 @@ const char *OpenSprinkler::sopts[] = {
 	DEFAULT_EMPTY_STRING,
 	DEFAULT_EMPTY_STRING,
 	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
+	DEFAULT_EMPTY_STRING,
 	DEFAULT_EMPTY_STRING
 };
 
@@ -429,8 +438,9 @@ time_t OpenSprinkler::now_tz() {
 #if defined(ARDUINO)	// AVR network init functions
 
 bool detect_i2c(int addr) {
-	Wire.beginTransmission(addr);
-	return (Wire.endTransmission()==0); // successful if received 0
+	// Wire.beginTransmission(addr);
+	// return (Wire.endTransmission()==0); // successful if received 0
+	return false;
 }
 
 /** read hardware MAC into tmp_buffer */
@@ -674,7 +684,7 @@ void OpenSprinkler::lcd_start() {
 void OpenSprinkler::begin() {
 
 #if defined(ARDUINO)
-	Wire.begin(); // init I2C
+	// Wire.begin(); // init I2C
 #endif
 
 	hw_type = HW_TYPE_UNKNOWN;
@@ -686,92 +696,94 @@ void OpenSprinkler::begin() {
 	if(detect_i2c(ACDR_I2CADDR)) hw_type = HW_TYPE_AC;
 	else if(detect_i2c(DCDR_I2CADDR)) hw_type = HW_TYPE_DC;
 	else if(detect_i2c(LADR_I2CADDR)) hw_type = HW_TYPE_LATCH;
+	else hw_type = HW_TYPE_RELAY8;
+
+	DEBUG_PRINT(F("HW TYPE:")); DEBUG_PRINTLN(hw_type);
 	
-	/* detect hardware revision type */
-	if(detect_i2c(MAIN_I2CADDR)) {	// check if main PCF8574 exists
-		/* assign revision 0 pins */
-		PIN_BUTTON_1 = V0_PIN_BUTTON_1;
-		PIN_BUTTON_2 = V0_PIN_BUTTON_2;
-		PIN_BUTTON_3 = V0_PIN_BUTTON_3;
-		PIN_RFRX = V0_PIN_RFRX;
-		PIN_RFTX = V0_PIN_RFTX;
-		PIN_BOOST = V0_PIN_BOOST;
-		PIN_BOOST_EN = V0_PIN_BOOST_EN;
-		PIN_SENSOR1 = V0_PIN_SENSOR1;
-		PIN_SENSOR2 = V0_PIN_SENSOR2;
+	// /* detect hardware revision type */
+	// if(detect_i2c(MAIN_I2CADDR)) {	// check if main PCF8574 exists
+	// 	/* assign revision 0 pins */
+	// 	PIN_BUTTON_1 = V0_PIN_BUTTON_1;
+	// 	PIN_BUTTON_2 = V0_PIN_BUTTON_2;
+	// 	PIN_BUTTON_3 = V0_PIN_BUTTON_3;
+	// 	PIN_RFRX = V0_PIN_RFRX;
+	// 	PIN_RFTX = V0_PIN_RFTX;
+	// 	PIN_BOOST = V0_PIN_BOOST;
+	// 	PIN_BOOST_EN = V0_PIN_BOOST_EN;
+	// 	PIN_SENSOR1 = V0_PIN_SENSOR1;
+	// 	PIN_SENSOR2 = V0_PIN_SENSOR2;
 		
-		// on revision 0, main IOEXP and driver IOEXP are two separate PCF8574 chips
-		if(hw_type==HW_TYPE_DC) {
-			drio = new PCF8574(DCDR_I2CADDR);
-		} else if(hw_type==HW_TYPE_LATCH) {
-			drio = new PCF8574(LADR_I2CADDR);
-		} else {
-			drio = new PCF8574(ACDR_I2CADDR);
-		}
+	// 	// on revision 0, main IOEXP and driver IOEXP are two separate PCF8574 chips
+	// 	if(hw_type==HW_TYPE_DC) {
+	// 		drio = new PCF8574(DCDR_I2CADDR);
+	// 	} else if(hw_type==HW_TYPE_LATCH) {
+	// 		drio = new PCF8574(LADR_I2CADDR);
+	// 	} else {
+	// 		drio = new PCF8574(ACDR_I2CADDR);
+	// 	}
 
-		mainio = new PCF8574(MAIN_I2CADDR);
-		mainio->i2c_write(0, 0x0F); // set lower four bits of main PCF8574 (8-ch) to high
+	// 	mainio = new PCF8574(MAIN_I2CADDR);
+	// 	mainio->i2c_write(0, 0x0F); // set lower four bits of main PCF8574 (8-ch) to high
 		
-		digitalWriteExt(V0_PIN_PWR_TX, 1); // turn on TX power
-		digitalWriteExt(V0_PIN_PWR_RX, 1); // turn on RX power
-		pinModeExt(PIN_BUTTON_2, INPUT_PULLUP);
-		digitalWriteExt(PIN_BOOST, LOW);
-		digitalWriteExt(PIN_BOOST_EN, LOW);
-		digitalWriteExt(PIN_LATCH_COM, LOW);
+	// 	digitalWriteExt(V0_PIN_PWR_TX, 1); // turn on TX power
+	// 	digitalWriteExt(V0_PIN_PWR_RX, 1); // turn on RX power
+	// 	pinModeExt(PIN_BUTTON_2, INPUT_PULLUP);
+	// 	digitalWriteExt(PIN_BOOST, LOW);
+	// 	digitalWriteExt(PIN_BOOST_EN, LOW);
+	// 	digitalWriteExt(PIN_LATCH_COM, LOW);
 		
-	} else {
+	// } else {
 
-		if(hw_type==HW_TYPE_DC) {
-			drio = new PCA9555(DCDR_I2CADDR);
-		} else if(hw_type==HW_TYPE_LATCH) {
-			drio = new PCA9555(LADR_I2CADDR);
-		} else {
-			drio = new PCA9555(ACDR_I2CADDR);
-		}
-		mainio = drio;
+	// 	if(hw_type==HW_TYPE_DC) {
+	// 		drio = new PCA9555(DCDR_I2CADDR);
+	// 	} else if(hw_type==HW_TYPE_LATCH) {
+	// 		drio = new PCA9555(LADR_I2CADDR);
+	// 	} else {
+	// 		drio = new PCA9555(ACDR_I2CADDR);
+	// 	}
+	// 	mainio = drio;
 
-		pinMode(16, INPUT);
-		if(digitalRead(16)==LOW) {
-			// revision 1
-			hw_rev = 1;
-			mainio->i2c_write(NXP_CONFIG_REG, V1_IO_CONFIG);
-			mainio->i2c_write(NXP_OUTPUT_REG, V1_IO_OUTPUT);
+	// 	pinMode(16, INPUT);
+	// 	if(digitalRead(16)==LOW) {
+	// 		// revision 1
+	// 		hw_rev = 1;
+	// 		mainio->i2c_write(NXP_CONFIG_REG, V1_IO_CONFIG);
+	// 		mainio->i2c_write(NXP_OUTPUT_REG, V1_IO_OUTPUT);
 
-			PIN_BUTTON_1 = V1_PIN_BUTTON_1;
-			PIN_BUTTON_2 = V1_PIN_BUTTON_2;
-			PIN_BUTTON_3 = V1_PIN_BUTTON_3;
-			PIN_RFRX = V1_PIN_RFRX;
-			PIN_RFTX = V1_PIN_RFTX;
-			PIN_IOEXP_INT = V1_PIN_IOEXP_INT;
-			PIN_BOOST = V1_PIN_BOOST;
-			PIN_BOOST_EN = V1_PIN_BOOST_EN;
-			PIN_LATCH_COM = V1_PIN_LATCH_COM;
-			PIN_SENSOR1 = V1_PIN_SENSOR1;
-			PIN_SENSOR2 = V1_PIN_SENSOR2;
-		} else {
-			// revision 2
-			hw_rev = 2;
-			mainio->i2c_write(NXP_CONFIG_REG, V2_IO_CONFIG);
-			mainio->i2c_write(NXP_OUTPUT_REG, V2_IO_OUTPUT);
+	// 		PIN_BUTTON_1 = V1_PIN_BUTTON_1;
+	// 		PIN_BUTTON_2 = V1_PIN_BUTTON_2;
+	// 		PIN_BUTTON_3 = V1_PIN_BUTTON_3;
+	// 		PIN_RFRX = V1_PIN_RFRX;
+	// 		PIN_RFTX = V1_PIN_RFTX;
+	// 		PIN_IOEXP_INT = V1_PIN_IOEXP_INT;
+	// 		PIN_BOOST = V1_PIN_BOOST;
+	// 		PIN_BOOST_EN = V1_PIN_BOOST_EN;
+	// 		PIN_LATCH_COM = V1_PIN_LATCH_COM;
+	// 		PIN_SENSOR1 = V1_PIN_SENSOR1;
+	// 		PIN_SENSOR2 = V1_PIN_SENSOR2;
+	// 	} else {
+	// 		// revision 2
+	// 		hw_rev = 2;
+	// 		mainio->i2c_write(NXP_CONFIG_REG, V2_IO_CONFIG);
+	// 		mainio->i2c_write(NXP_OUTPUT_REG, V2_IO_OUTPUT);
 			
-			PIN_BUTTON_1 = V2_PIN_BUTTON_1;
-			PIN_BUTTON_2 = V2_PIN_BUTTON_2;
-			PIN_BUTTON_3 = V2_PIN_BUTTON_3;
-			PIN_RFTX = V2_PIN_RFTX;
-			PIN_BOOST = V2_PIN_BOOST;
-			PIN_BOOST_EN = V2_PIN_BOOST_EN;
-			PIN_LATCH_COMK = V2_PIN_LATCH_COMK; // os3.2latch uses H-bridge separate cathode and anode design
-			PIN_LATCH_COMA = V2_PIN_LATCH_COMA;
-			PIN_SENSOR1 = V2_PIN_SENSOR1;
-			PIN_SENSOR2 = V2_PIN_SENSOR2;
-		}		 
-	}
+	// 		PIN_BUTTON_1 = V2_PIN_BUTTON_1;
+	// 		PIN_BUTTON_2 = V2_PIN_BUTTON_2;
+	// 		PIN_BUTTON_3 = V2_PIN_BUTTON_3;
+	// 		PIN_RFTX = V2_PIN_RFTX;
+	// 		PIN_BOOST = V2_PIN_BOOST;
+	// 		PIN_BOOST_EN = V2_PIN_BOOST_EN;
+	// 		PIN_LATCH_COMK = V2_PIN_LATCH_COMK; // os3.2latch uses H-bridge separate cathode and anode design
+	// 		PIN_LATCH_COMA = V2_PIN_LATCH_COMA;
+	// 		PIN_SENSOR1 = V2_PIN_SENSOR1;
+	// 		PIN_SENSOR2 = V2_PIN_SENSOR2;
+	// 	}		 
+	// }
 	
 	/* detect expanders */
-	for(byte i=0;i<(MAX_NUM_BOARDS)/2;i++)
-		expanders[i] = NULL;
-	detect_expanders();
-
+	// for(byte i=0;i<(MAX_NUM_BOARDS)/2;i++)
+	// 	expanders[i] = NULL;
+	// detect_expanders();
 #else
 
 	// shift register setup
@@ -839,7 +851,7 @@ void OpenSprinkler::begin() {
 
 	#if defined(ESP8266)	// OS3.0 specific detections
 
-		status.has_curr_sense = 1;	// OS3.0 has current sensing capacility
+		status.has_curr_sense = 0;	// OS3.0 has current sensing capacility
 		// measure baseline current
 		baseline_current = 80;
 		
@@ -876,28 +888,28 @@ void OpenSprinkler::begin() {
 
 	#endif
 
-	lcd_start();
+	// lcd_start();
 
-	lcd.createChar(ICON_CONNECTED, _iconimage_connected);
-	lcd.createChar(ICON_DISCONNECTED, _iconimage_disconnected);
-	lcd.createChar(ICON_REMOTEXT, _iconimage_remotext);
-	lcd.createChar(ICON_RAINDELAY, _iconimage_raindelay);
-	lcd.createChar(ICON_RAIN, _iconimage_rain);
-	lcd.createChar(ICON_SOIL, _iconimage_soil);
+	// lcd.createChar(ICON_CONNECTED, _iconimage_connected);
+	// lcd.createChar(ICON_DISCONNECTED, _iconimage_disconnected);
+	// lcd.createChar(ICON_REMOTEXT, _iconimage_remotext);
+	// lcd.createChar(ICON_RAINDELAY, _iconimage_raindelay);
+	// lcd.createChar(ICON_RAIN, _iconimage_rain);
+	// lcd.createChar(ICON_SOIL, _iconimage_soil);
 	
 	#if defined(ESP8266)
 
 		/* create custom characters */
-		lcd.createChar(ICON_ETHER_CONNECTED, _iconimage_ether_connected);
-		lcd.createChar(ICON_ETHER_DISCONNECTED, _iconimage_ether_disconnected);
+		// lcd.createChar(ICON_ETHER_CONNECTED, _iconimage_ether_connected);
+		// lcd.createChar(ICON_ETHER_DISCONNECTED, _iconimage_ether_disconnected);
 		
-		lcd.setCursor(0,0);
-		lcd.print(F("Init file system"));
-		lcd.setCursor(0,1);
+		// lcd.setCursor(0,0);
+		// lcd.print(F("Init file system"));
+		// lcd.setCursor(0,1);
 		if(!SPIFFS.begin()) {
 			// !!! flash init failed, stall as we cannot proceed
-			lcd.setCursor(0, 0);
-			lcd_print_pgm(PSTR("Error Code: 0x2D"));
+			// lcd.setCursor(0, 0);
+			// lcd_print_pgm(PSTR("Error Code: 0x2D"));
 			delay(5000);
 		}
 
@@ -920,12 +932,21 @@ void OpenSprinkler::begin() {
 		
 	// set button pins
 	// enable internal pullup
-	pinMode(PIN_BUTTON_1, INPUT_PULLUP);
-	pinMode(PIN_BUTTON_2, INPUT_PULLUP);
-	pinMode(PIN_BUTTON_3, INPUT_PULLUP);
+	// pinMode(PIN_BUTTON_1, INPUT_PULLUP);
+	// pinMode(PIN_BUTTON_2, INPUT_PULLUP);
+	// pinMode(PIN_BUTTON_3, INPUT_PULLUP);
 	
 	// detect and check RTC type
 	RTC.detect();
+
+	if (hw_type == HW_TYPE_RELAY8) {
+		for(byte i = 0; i < RELAY8_PINS_ALL_SIZE; i++) {
+			pinMode(RELAY8_PINS_ALL[i], OUTPUT);
+			digitalWrite(RELAY8_PINS_ALL[i], LOW);
+			DEBUG_PRINT(F("Set pin mode")); DEBUG_PRINTLN(RELAY8_PINS_ALL[i]);
+		}	
+
+	}
 
 #else
 	DEBUG_PRINTLN(get_runtime_path());
@@ -1098,6 +1119,16 @@ void OpenSprinkler::apply_all_station_bits() {
 		// if controller type is latching, the control mechanism is different
 		// hence will be handled separately
 		latch_apply_all_station_bits(); 
+	} else if (hw_type == HW_TYPE_RELAY8) {
+		byte bits = station_bits[0];
+		for (byte i = 0; i < RELAY8_PINS_STATIONS_SIZE; i++) {
+			if (bits & 0x01) {
+				digitalWrite(RELAY8_PINS_STATIONS[i], HIGH);
+			} else {
+				digitalWrite(RELAY8_PINS_STATIONS[i], LOW);
+			}
+			bits >>= 1;
+		}
 	} else {
 		// Handle DC booster
 		if(hw_type==HW_TYPE_DC && engage_booster) {
@@ -1696,6 +1727,9 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 		DEBUG_PRINT(server);
 		DEBUG_PRINT(":");
 		DEBUG_PRINTLN(port);
+
+		DEBUG_PRINT("request: ");
+		DEBUG_PRINTLN(p);
 		if(client->connect(server, port)==1) break;
 		tries++;
 	} while(tries<HTTP_CONNECT_NTRIES);
@@ -1734,6 +1768,7 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 
 #if defined(ARDUINO)
 	while(client->connected()) {
+		yield();
 		int nbytes = client->available();
 		if(nbytes>0) {
 			if(nbytes>ETHER_BUFFER_SIZE) nbytes=ETHER_BUFFER_SIZE;
@@ -1839,8 +1874,8 @@ void OpenSprinkler::switch_httpstation(HTTPStationData *data, bool turnon) {
 void OpenSprinkler::pre_factory_reset() {
 	// for ESP8266: wipe out flash
 	#if defined(ESP8266)
-	lcd_print_line_clear_pgm(PSTR("Wiping flash.."), 0);
-	lcd_print_line_clear_pgm(PSTR("Please Wait..."), 1);
+	DEBUG_PRINTLN(PSTR("Wiping flash.."));
+	DEBUG_PRINTLN(PSTR("Please Wait..."));
 	SPIFFS.format();
 	#else
 	// remove 'done' file as an indicator for reset
@@ -1933,104 +1968,104 @@ void OpenSprinkler::options_setup() {
 	}
 
 #if defined(ARDUINO)	// handle AVR buttons
-	byte button = button_read(BUTTON_WAIT_NONE);
+	// byte button = button_read(BUTTON_WAIT_NONE);
 
-	switch(button & BUTTON_MASK) {
+	// switch(button & BUTTON_MASK) {
 
-	case BUTTON_1:
-		// if BUTTON_1 is pressed during startup, go to 'reset all options'
-		ui_set_options(IOPT_RESET);
-		if (iopts[IOPT_RESET]) {
-			pre_factory_reset();
-			reboot_dev(REBOOT_CAUSE_RESET);
-		}
-		break;
+	// case BUTTON_1:
+	// 	// if BUTTON_1 is pressed during startup, go to 'reset all options'
+	// 	ui_set_options(IOPT_RESET);
+	// 	if (iopts[IOPT_RESET]) {
+	// 		pre_factory_reset();
+	// 		reboot_dev(REBOOT_CAUSE_RESET);
+	// 	}
+	// 	break;
 
-	case BUTTON_2:
-	#if defined(ESP8266)
-		// if BUTTON_2 is pressed during startup, go to Test OS mode
-		// only available for OS 3.0
-		lcd_print_line_clear_pgm(PSTR("===Test Mode==="), 0);
-		lcd_print_line_clear_pgm(PSTR("  B3:proceed"), 1);
-		do {
-			button = button_read(BUTTON_WAIT_NONE);
-		} while(!((button&BUTTON_MASK)==BUTTON_3 && (button&BUTTON_FLAG_DOWN)));
-		// set test mode parameters
+	// case BUTTON_2:
+	// #if defined(ESP8266)
+	// 	// if BUTTON_2 is pressed during startup, go to Test OS mode
+	// 	// only available for OS 3.0
+	// 	lcd_print_line_clear_pgm(PSTR("===Test Mode==="), 0);
+	// 	lcd_print_line_clear_pgm(PSTR("  B3:proceed"), 1);
+	// 	do {
+	// 		button = button_read(BUTTON_WAIT_NONE);
+	// 	} while(!((button&BUTTON_MASK)==BUTTON_3 && (button&BUTTON_FLAG_DOWN)));
+	// 	// set test mode parameters
 		
-		//iopts[IOPT_WIFI_MODE] = WIFI_MODE_STA;
-		wifi_testmode = 1;
-		#if defined(TESTMODE_SSID)
-		wifi_ssid = TESTMODE_SSID;
-		wifi_pass = TESTMODE_PASS;
-		#else
-		wifi_ssid = "ostest";
-		wifi_pass = "opendoor";
-		#endif
-		button = 0;
-	#endif
+	// 	//iopts[IOPT_WIFI_MODE] = WIFI_MODE_STA;
+	// 	wifi_testmode = 1;
+	// 	#if defined(TESTMODE_SSID)
+	// 	wifi_ssid = TESTMODE_SSID;
+	// 	wifi_pass = TESTMODE_PASS;
+	// 	#else
+	// 	wifi_ssid = "ostest";
+	// 	wifi_pass = "opendoor";
+	// 	#endif
+	// 	button = 0;
+	// #endif
 	
-		break;
+	// 	break;
 
-	case BUTTON_3:
-		// if BUTTON_3 is pressed during startup, enter Setup option mode
-		lcd_print_line_clear_pgm(PSTR("==Set Options=="), 0);
-		delay(DISPLAY_MSG_MS);
-		lcd_print_line_clear_pgm(PSTR("B1/B2:+/-, B3:->"), 0);
-		lcd_print_line_clear_pgm(PSTR("Hold B3 to save"), 1);
-		do {
-			button = button_read(BUTTON_WAIT_NONE);
-		} while (!(button & BUTTON_FLAG_DOWN));
-		lcd.clear();
-		ui_set_options(0);
-		if (iopts[IOPT_RESET]) {
-			pre_factory_reset();
-			reboot_dev(REBOOT_CAUSE_RESET);
-		}
-		break;
-	}
+	// case BUTTON_3:
+	// 	// if BUTTON_3 is pressed during startup, enter Setup option mode
+	// 	lcd_print_line_clear_pgm(PSTR("==Set Options=="), 0);
+	// 	delay(DISPLAY_MSG_MS);
+	// 	lcd_print_line_clear_pgm(PSTR("B1/B2:+/-, B3:->"), 0);
+	// 	lcd_print_line_clear_pgm(PSTR("Hold B3 to save"), 1);
+	// 	do {
+	// 		button = button_read(BUTTON_WAIT_NONE);
+	// 	} while (!(button & BUTTON_FLAG_DOWN));
+	// 	lcd.clear();
+	// 	ui_set_options(0);
+	// 	if (iopts[IOPT_RESET]) {
+	// 		pre_factory_reset();
+	// 		reboot_dev(REBOOT_CAUSE_RESET);
+	// 	}
+	// 	break;
+	// }
 
 	// turn on LCD backlight and contrast
-	lcd_set_brightness();
-	lcd_set_contrast();
+	// lcd_set_brightness();
+	// lcd_set_contrast();
 
-	if (!button) {
-		// flash screen
-		lcd_print_line_clear_pgm(PSTR(" OpenSprinkler"),0);
-		lcd.setCursor((hw_type==HW_TYPE_LATCH)?2:4, 1);
-		lcd_print_pgm(PSTR("v"));
-		byte hwv = iopts[IOPT_HW_VERSION];
-		lcd.print((char)('0'+(hwv/10)));
-		lcd.print('.');
-		#if defined(ESP8266)
-		lcd.print(hw_rev);
-		#else
-		lcd.print((char)('0'+(hwv%10)));
-		#endif
-		switch(hw_type) {
-		case HW_TYPE_DC:
-			lcd_print_pgm(PSTR(" DC"));
-			break;
-		case HW_TYPE_LATCH:
-			lcd_print_pgm(PSTR(" LATCH"));
-			break;
-		default:
-			lcd_print_pgm(PSTR(" AC"));
-		}
-		delay(1500);
-		#if defined(ARDUINO)
-		lcd.setCursor(2, 1);
-		lcd_print_pgm(PSTR("FW "));
-		lcd.print((char)('0'+(OS_FW_VERSION/100)));
-		lcd.print('.');
-		lcd.print((char)('0'+((OS_FW_VERSION/10)%10)));
-		lcd.print('.');
-		lcd.print((char)('0'+(OS_FW_VERSION%10)));
-		lcd.print('(');
-		lcd.print(OS_FW_MINOR);
-		lcd.print(')');
-		delay(1000);
-		#endif
-	}
+	// if (!button) {
+	// 	// flash screen
+	// 	lcd_print_line_clear_pgm(PSTR(" OpenSprinkler"),0);
+	// 	lcd.setCursor((hw_type==HW_TYPE_LATCH)?2:4, 1);
+	// 	lcd_print_pgm(PSTR("v"));
+	// 	byte hwv = iopts[IOPT_HW_VERSION];
+	// 	lcd.print((char)('0'+(hwv/10)));
+	// 	lcd.print('.');
+	// 	#if defined(ESP8266)
+	// 	lcd.print(hw_rev);
+	// 	#else
+	// 	lcd.print((char)('0'+(hwv%10)));
+	// 	#endif
+	// 	switch(hw_type) {
+	// 	case HW_TYPE_DC:
+	// 		lcd_print_pgm(PSTR(" DC"));
+	// 		break;
+	// 	case HW_TYPE_LATCH:
+	// 		lcd_print_pgm(PSTR(" LATCH"));
+	// 		break;
+	// 	default:
+	// 		lcd_print_pgm(PSTR(" AC"));
+	// 	}
+	// 	delay(1500);
+	// 	#if defined(ARDUINO)
+	// 	lcd.setCursor(2, 1);
+	// 	lcd_print_pgm(PSTR("FW "));
+	// 	lcd.print((char)('0'+(OS_FW_VERSION/100)));
+	// 	lcd.print('.');
+	// 	lcd.print((char)('0'+((OS_FW_VERSION/10)%10)));
+	// 	lcd.print('.');
+	// 	lcd.print((char)('0'+(OS_FW_VERSION%10)));
+	// 	lcd.print('(');
+	// 	lcd.print(OS_FW_MINOR);
+	// 	lcd.print(')');
+	// 	delay(1000);
+	// 	#endif
+	// }
 #endif
 }
 
@@ -2076,7 +2111,7 @@ void OpenSprinkler::iopts_save() {
 
 /** Load a string option from file */
 void OpenSprinkler::sopt_load(byte oid, char *buf) {
-	file_read_block(SOPTS_FILENAME, buf, MAX_SOPTS_SIZE*oid, MAX_SOPTS_SIZE);
+	file_read_block(SOPTS_FILENAME, buf, (ulong)MAX_SOPTS_SIZE*oid, MAX_SOPTS_SIZE);
 	buf[MAX_SOPTS_SIZE]=0;	// ensure the string ends properly
 }
 
@@ -2084,6 +2119,16 @@ void OpenSprinkler::sopt_load(byte oid, char *buf) {
 String OpenSprinkler::sopt_load(byte oid) {
 	sopt_load(oid, tmp_buffer);
 	String str = tmp_buffer;
+
+	DEBUG_PRINT("sopt_load(): tmpbuffer len=");
+	DEBUG_PRINTLN(strlen(tmp_buffer));
+
+	DEBUG_PRINT("sopt_load(): String len=");
+	DEBUG_PRINTLN(str.length());
+
+	if (!str) {
+		DEBUG_PRINTLN("string is invalid!!!");
+	}
 	return str;
 }
 
@@ -2091,13 +2136,42 @@ String OpenSprinkler::sopt_load(byte oid) {
 bool OpenSprinkler::sopt_save(byte oid, const char *buf) {
 	// smart save: if value hasn't changed, don't write
 	if(file_cmp_block(SOPTS_FILENAME, buf, (ulong)MAX_SOPTS_SIZE*oid)==0) return false;
+
 	int len = strlen(buf);
-	if(len>=MAX_SOPTS_SIZE) {
-		file_write_block(SOPTS_FILENAME, buf, (ulong)MAX_SOPTS_SIZE*oid, MAX_SOPTS_SIZE);
-	} else {
-		// copy ending 0 too
-		file_write_block(SOPTS_FILENAME, buf, (ulong)MAX_SOPTS_SIZE*oid, len+1);
-	}
+
+	if (len > MAX_SOPTS_SIZE-1) {
+		len = MAX_SOPTS_SIZE-1;
+	};
+
+	char lbuf[MAX_SOPTS_SIZE];
+	memset(lbuf, 0, MAX_SOPTS_SIZE);
+	memcpy(lbuf, buf, len);
+
+	file_write_block(SOPTS_FILENAME, lbuf, (ulong)MAX_SOPTS_SIZE*oid, MAX_SOPTS_SIZE);
+
+	// int len = strlen(buf);
+	// if(len>=MAX_SOPTS_SIZE) {
+	// 	DEBUG_PRINT("Partial write: ");
+	// 	DEBUG_PRINT(oid);
+	// 	DEBUG_PRINT(" ");
+	// 	DEBUG_PRINTLN(buf);
+	// 	char *bf = (char *)buf;
+	// 	bf[MAX_SOPTS_SIZE-1] = '\0';
+	// 	file_write_block(SOPTS_FILENAME, buf, (ulong)MAX_SOPTS_SIZE*oid, MAX_SOPTS_SIZE);
+	// } else {
+	// 	DEBUG_PRINT("Full write: ");
+	// 	DEBUG_PRINT(oid);
+	// 	DEBUG_PRINT(" ");
+	// 	DEBUG_PRINTLN(buf);
+	// 	// ensure ending is 0
+	// 	char *bf = (char *)buf;
+	// 	bf[len] = '\0';
+	// 	// copy ending 0 too
+	// 	file_write_block(SOPTS_FILENAME, bf, (ulong)MAX_SOPTS_SIZE*oid, len+1);
+	// 	DEBUG_PRINT("sopt_save(): writing ");
+	// 	DEBUG_PRINT(len+1);
+	// 	DEBUG_PRINTLN(" bytes");
+	// }
 	return true;
 }
 	

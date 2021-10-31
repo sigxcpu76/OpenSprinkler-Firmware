@@ -24,7 +24,7 @@
 #ifndef _DEFINES_H
 #define _DEFINES_H
 
-//#define ENABLE_DEBUG  // enable serial debug
+#define ENABLE_DEBUG  // enable serial debug
 
 typedef unsigned char byte;
 typedef unsigned long ulong;
@@ -49,6 +49,8 @@ typedef unsigned long ulong;
 #define HW_TYPE_DC           0xDC   // DC powered, for both DC and 24VAC solenoids, with boost converter and MOSFETs
 #define HW_TYPE_LATCH        0x1A   // DC powered, for DC latching solenoids only, with boost converter and H-bridges
 #define HW_TYPE_UNKNOWN      0xFF
+
+#define HW_TYPE_RELAY8		0x08
 
 /** Data file names */
 #define IOPTS_FILENAME        "iopts.dat"   // integer options data file
@@ -138,7 +140,7 @@ typedef unsigned long ulong;
 
 /** Default string option values */
 #define DEFAULT_PASSWORD          "a6d82bced638de3def1e9bbb4983225c"  // md5 of 'opendoor'
-#define DEFAULT_LOCATION          "42.36,-71.06"	// Boston,MA
+#define DEFAULT_LOCATION          "44.99774,25.97470"	// Boston,MA
 #define DEFAULT_JAVASCRIPT_URL    "https://ui.opensprinkler.com/js"
 #define DEFAULT_WEATHER_URL       "weather.opensprinkler.com"
 #define DEFAULT_IFTTT_URL         "maker.ifttt.com"
@@ -321,6 +323,7 @@ enum {
 	extern byte PIN_SENSOR2;
 	extern byte PIN_IOEXP_INT;
 
+	
 	/* Original OS30 pin defines */
 	//#define V0_MAIN_INPUTMASK 0b00001010 // main input pin mask
 	// pins on main PCF8574 IO expander have pin numbers IOEXP_PIN+i

@@ -31,17 +31,22 @@
 #include "images.h"
 #include "mqtt.h"
 
+#if defined(ESP8266) 
+	#include "customdefines.h"
+#endif
+
 #if defined(ARDUINO) // headers for ESP8266
 	#include <Arduino.h>
 	#include <Wire.h>
 	#include <SPI.h>
 	#include <Ethernet.h>
+	#include <NTP.h>
 	#include "I2CRTC.h"
 
 	#if defined(ESP8266)
 		#include <FS.h>
 		#include <RCSwitch.h>
-		#include "SSD1306Display.h"
+		#include "NOOPDisplay.h"
 		#include "espconnect.h"
 	#else
 		#include <SdFat.h>
@@ -142,7 +147,7 @@ public:
 
 	// data members
 #if defined(ESP8266)
-	static SSD1306Display lcd;	// 128x64 OLED display
+	static NOOPDisplay lcd;	// 128x64 OLED display
 #elif defined(ARDUINO)
 	static LiquidCrystal lcd; // 16x2 character LCD
 #else

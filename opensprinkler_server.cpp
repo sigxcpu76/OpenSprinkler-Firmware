@@ -1374,14 +1374,20 @@ void server_change_options()
 		if (os.sopt_save(SOPT_LOCATION, tmp_buffer)) { // if location string has changed
 			weather_change = true;
 		}
+		DEBUG_PRINTLN("Location:");
+		DEBUG_PRINTLN(tmp_buffer);
+		DEBUG_PRINTLN(os.sopt_load(SOPT_LOCATION));
 	}
+
 	uint8_t keyfound = 0;
 	if(findKeyVal(p, tmp_buffer, TMP_BUFFER_SIZE, PSTR("wto"), true)) {
 		urlDecode(tmp_buffer);
 		if (os.sopt_save(SOPT_WEATHER_OPTS, tmp_buffer)) {
 			weather_change = true;	// if wto has changed
 		}
-		//DEBUG_PRINTLN(os.sopt_load(SOPT_WEATHER_OPTS));
+		DEBUG_PRINTLN("Weather:");
+		DEBUG_PRINTLN(tmp_buffer);
+		DEBUG_PRINTLN(os.sopt_load(SOPT_WEATHER_OPTS));
 	}
 	
 	keyfound = 0;
@@ -2228,3 +2234,38 @@ ulong getNtpTime() {
 	return 0;
 }
 #endif
+
+// #if defined(ARDUINO)
+// /** NTP sync request */
+// ulong getNtpTime() {
+
+// 	// only proceed if we are connected
+// 	if(!os.network_connected()) return 0;
+
+// 	UDP *udp = NULL;
+// 	#if defined(ESP8266)
+// 		if(m_server) udp = new EthernetUDP();
+// 		else udp = new WiFiUDP();
+// 	#else
+// 		udp = new EthernetUDP();
+// 	#endif
+
+// 	NTP *ntp = new NTP(*udp);
+
+// 	ntp->begin(true);
+// 	ntp->ruleDST("EEST", Last, Sun, Mar, 3, 180);
+// 	ntp->ruleSTD("EET", Last, Sun, Oct, 4, 120);
+
+// 	DEBUG_PRINT("NTP time: ");
+// 	DEBUG_PRINTLN(ntp->formattedTime("%d. %B %Y %A %T"));
+
+// 	ulong result = ntp->epoch();
+
+// 	ntp->stop();
+// 	delete ntp;
+// 	udp->stop();
+// 	delete udp;
+
+// 	return result;
+// }
+// #endif
