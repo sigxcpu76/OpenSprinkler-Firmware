@@ -1600,7 +1600,7 @@ void write_log(byte type, ulong curr_time) {
 	}
 	fseek(file, 0, SEEK_END);
 #endif	// prepare log folder
-	
+	memset(tmp_buffer, 0, TMP_BUFFER_SIZE*2);
 	// Step 2: prepare data buffer
 	strcpy_P(tmp_buffer, PSTR("["));
 
@@ -1656,6 +1656,8 @@ void write_log(byte type, ulong curr_time) {
 #if defined(ARDUINO)
 	#if defined(ESP8266)
 	file.write((byte*)tmp_buffer, strlen(tmp_buffer));
+	DEBUG_PRINT("Writing log: ");
+	DEBUG_PRINTLN(tmp_buffer);
 	#else
 	file.write(tmp_buffer);
 	#endif
