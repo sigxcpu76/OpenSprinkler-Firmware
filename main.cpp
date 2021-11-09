@@ -531,6 +531,9 @@ void do_loop()
 				start_server_client();
 				os.state = OS_STATE_CONNECTED;
 				connecting_timeout = 0;
+
+				DEBUG_PRINT("=== WiFI connected! IP Addres: ");
+				DEBUG_PRINTLN(WiFi.localIP());
 			} else {
 				if(millis()>connecting_timeout) {
 					os.state = OS_STATE_INITIAL;
