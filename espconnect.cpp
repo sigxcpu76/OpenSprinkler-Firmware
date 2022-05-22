@@ -68,6 +68,5 @@ void start_network_sta(const char *ssid, const char *pass) {
 	if(!ssid || !pass) return;
 	WiFi.mode(WIFI_STA);
 	WiFi.begin(ssid, pass);
-	WiFi.setAutoReconnect(true);
 }
 #endif
