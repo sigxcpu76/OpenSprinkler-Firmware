@@ -337,6 +337,10 @@ void do_setup() {
 	os.apply_all_station_bits(); // reset station bits
 
 	os.button_timeout = LCD_BACKLIGHT_TIMEOUT;
+#if defined(ESP8266)
+	// initialize watchdog
+	ESP.wdtEnable(WDTO_8S);
+#endif
 }
 
 // Arduino software reset function
@@ -397,9 +401,15 @@ void start_server_client();
 
 void handle_web_request(char *p);
 
+unsigned long last_debug_message = 0L;
+
 /** Main Loop */
 void do_loop()
 {
+#if defined(ESP8266)
+	// feed the watchdog
+	ESP.wdtFeed();
+#endif
 	// handle flow sensor using polling every 1ms (maximum freq 1/(2*1ms)=500Hz)
 	static ulong flowpoll_timeout=0;
 	if(os.iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_FLOW) {
@@ -531,6 +541,8 @@ void do_loop()
 				start_server_client();
 				os.state = OS_STATE_CONNECTED;
 				connecting_timeout = 0;
+
+				WiFi.setAutoReconnect(true);
 
 				DEBUG_PRINT("=== WiFI connected! IP Addres: ");
 				DEBUG_PRINTLN(WiFi.localIP());
@@ -1037,6 +1049,15 @@ void do_loop()
 	#if !defined(ARDUINO)
 		delay(1); // For OSPI/OSBO/LINUX, sleep 1 ms to minimize CPU usage
 	#endif
+
+#if defined(ESP8266)
+	if (millis() - last_debug_message >= 1000) {
+		last_debug_message = millis();
+		Serial.print("free memory: ");
+		Serial.println(ESP.getFreeHeap());
+	}
+#endif
+
 }
 
 /** Check and process special program command */
