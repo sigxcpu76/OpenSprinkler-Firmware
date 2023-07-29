@@ -52,7 +52,7 @@ void remote_http_callback(char*);
 
 // Small variations have been added to the timing values below
 // to minimize conflicting events
-#define NTP_SYNC_INTERVAL				86413L 	// NTP sync interval (in seconds)
+#define NTP_SYNC_INTERVAL				912L 	// NTP sync interval (in seconds)
 #define CHECK_NETWORK_INTERVAL	601			// Network checking timeout (in seconds)
 #define CHECK_WEATHER_TIMEOUT		21613L  // Weather check interval (in seconds)
 #define CHECK_WEATHER_SUCCESS_TIMEOUT 86400L // Weather check success interval (in seconds)
