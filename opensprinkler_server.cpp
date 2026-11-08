@@ -164,9 +164,10 @@ byte findKeyVal (const char *str,char *strbuf, uint16_t maxlen,const char *key,b
 	// for ESP8266: there are two cases:
 	// case 1: if str is NULL, we assume the key-val to search is already parsed in wifi_server
 	if(str==NULL) {
-		char _key[10];
-		if(key_in_pgm) strcpy_P(_key, key);
-		else strcpy(_key, key);
+		char _key[16];
+		if(key_in_pgm) strncpy_P(_key, key, sizeof(_key)-1);
+		else strncpy(_key, key, sizeof(_key)-1);
+		_key[sizeof(_key)-1] = 0;
 		if(wifi_server->hasArg(_key)) {
 			// copy value to buffer, and make sure it ends properly
 			strncpy(strbuf, wifi_server->arg(_key).c_str(), maxlen);
@@ -572,8 +573,9 @@ void server_change_stations() {
 
 	/* handle special data */
 	if(findKeyVal(p, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
-		sid = atoi(tmp_buffer);
-		if(sid<0 || sid>os.nstations) handle_return(HTML_DATA_OUTOFBOUND);
+		int stn_id = atoi(tmp_buffer);
+		if(stn_id<0 || stn_id>=os.nstations) handle_return(HTML_DATA_OUTOFBOUND);
+		sid = (byte)stn_id;
 		if(findKeyVal(p, tmp_buffer, TMP_BUFFER_SIZE, PSTR("st"), true) &&
 			 findKeyVal(p, tmp_buffer+1, TMP_BUFFER_SIZE-1, PSTR("sd"), true)) {
 
@@ -1637,7 +1639,7 @@ void server_json_log() {
 	char *p = get_buffer;
 #endif
 
-	unsigned int start, end;
+	ulong start, end;
 
 	// past n day history
 	if (findKeyVal(p, tmp_buffer, TMP_BUFFER_SIZE, PSTR("hist"), true)) {
@@ -1680,8 +1682,8 @@ void server_json_log() {
 	bfill.emit_p(PSTR("["));
 
 	bool comma = 0;
-	for(unsigned int i=start;i<=end;i++) {
-		itoa(i, tmp_buffer, 10);
+	for(ulong i=start;i<=end;i++) {
+		ultoa(i, tmp_buffer, 10);
 		make_logfile_name(tmp_buffer);
 
 #if defined(ESP8266)
@@ -1981,7 +1983,13 @@ void on_ap_upload() {
 }
 
 void start_server_client() {
-	if(!wifi_server) return;
+	if(wifi_server) {
+		wifi_server->stop();
+		delete wifi_server;
+		wifi_server = NULL;
+	}
+	uint16_t httpport = (uint16_t)(os.iopts[IOPT_HTTPPORT_1]<<8) + (uint16_t)os.iopts[IOPT_HTTPPORT_0];
+	wifi_server = new ESP8266WebServer(httpport);
 	
 	wifi_server->on("/", server_home);	// handle home page
 	wifi_server->on("/index.html", server_home);
@@ -2001,7 +2009,12 @@ void start_server_client() {
 }
 
 void start_server_ap() {
-	if(!wifi_server) return;
+	if(wifi_server) {
+		wifi_server->stop();
+		delete wifi_server;
+		wifi_server = NULL;
+	}
+	wifi_server = new ESP8266WebServer(80);
 	
 	scanned_ssids = scan_network();
 	String ap_ssid = get_ap_ssid();
@@ -2166,6 +2179,9 @@ ulong getNtpTime() {
 	byte tries=0;
 	ulong gt = 0;
 	while(tries<NTP_NTRIES) {
+		#if defined(ESP8266)
+		ESP.wdtFeed();
+		#endif
 		// sendNtpPacket
 		udp->begin(port);
 
@@ -2209,6 +2225,10 @@ ulong getNtpTime() {
 		// process response
 		ulong timeout = millis()+2000;
 		while(millis() < timeout) {
+			#if defined(ESP8266)
+			ESP.wdtFeed();
+			#endif
+			yield();
 			if(udp->parsePacket()) {
 				udp->read(packetBuffer, NTP_PACKET_SIZE);
 				ulong highWord = word(packetBuffer[40], packetBuffer[41]);

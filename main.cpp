@@ -131,6 +131,9 @@ bool ui_confirm(PGM_P str) {
 }
 
 void ui_state_machine() {
+#if defined(ESP8266)
+	if (os.hw_type == HW_TYPE_RELAY8) { return; }
+#endif
 
 	// to avoid ui_state_machine taking too much computation time
 	// we run it only every UI_STATE_MACHINE_INTERVAL ms
@@ -481,9 +484,9 @@ void do_loop()
 		// #endif
 
 		static unsigned long dhcp_timeout = 0;
-		if(curr_time > dhcp_timeout) {
+		if(millis() - dhcp_timeout >= DHCP_CHECKLEASE_INTERVAL * 1000UL) {
 			Ethernet.maintain();
-			dhcp_timeout = curr_time + DHCP_CHECKLEASE_INTERVAL;
+			dhcp_timeout = millis();
 		}
 		EthernetClient client = m_server->available();
 		if (client) {
@@ -549,7 +552,7 @@ void do_loop()
 			} else {
 				if(millis()>connecting_timeout) {
 					os.state = OS_STATE_INITIAL;
-					WiFi.disconnect(true);
+					WiFi.disconnect();
 					DEBUG_PRINTLN(F("timeout"));
 				}
 			}
@@ -571,12 +574,30 @@ void do_loop()
 			}
 			else {
 				if(WiFi.status() == WL_CONNECTED) {
+					// Check WiFi DHCP lease for STA mode
+					static unsigned long wifi_dhcp_timeout = 0;
+					if(millis() - wifi_dhcp_timeout >= DHCP_CHECKLEASE_INTERVAL * 1000UL) {
+						// Get the current IP address
+						IPAddress curr_ip = WiFi.localIP();
+						// Check if IP address is valid (not 0.0.0.0)
+						if(curr_ip[0] == 0 && curr_ip[1] == 0 && curr_ip[2] == 0 && curr_ip[3] == 0) {
+							DEBUG_PRINTLN(F("WiFi DHCP lease expired. Rebooting..."));
+							os.reboot_dev(REBOOT_CAUSE_NETWORK_FAIL);
+						}
+						wifi_dhcp_timeout = millis();
+					}
+					
 					wifi_server->handleClient();
 					connecting_timeout = 0;
 				} else {
-					DEBUG_PRINTLN(F("WiFi disconnected, going back to initial"));
-					os.state = OS_STATE_INITIAL;
-					WiFi.disconnect(true);
+					if(!connecting_timeout) {
+						connecting_timeout = millis() + 30000L;
+					} else if(millis() > connecting_timeout) {
+						DEBUG_PRINTLN(F("WiFi disconnected, going back to initial"));
+						os.state = OS_STATE_INITIAL;
+						WiFi.disconnect();
+						connecting_timeout = 0;
+					}
 				}
 			}
 			break;
@@ -1008,8 +1029,10 @@ void do_loop()
 
 		// real-time flow count
 		static ulong flowcount_rt_start = 0;
+		static ulong last_flowcount_rt = 0;
 		if (os.iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_FLOW) {
-			if (curr_time % FLOWCOUNT_RT_WINDOW == 0) {
+			if (millis() - last_flowcount_rt >= FLOWCOUNT_RT_WINDOW * 1000UL) {
+				last_flowcount_rt = millis();
 				os.flowcount_rt = (flow_count > flowcount_rt_start) ? flow_count - flowcount_rt_start: 0;
 				flowcount_rt_start = flow_count;
 			}
@@ -1018,12 +1041,19 @@ void do_loop()
 		// perform ntp sync
 		// instead of using curr_time, which may change due to NTP sync itself
 		// we use Arduino's millis() method
-		if (curr_time % NTP_SYNC_INTERVAL == 0) os.status.req_ntpsync = 1;
-		//if((millis()/1000) % NTP_SYNC_INTERVAL==15) os.status.req_ntpsync = 1;
+		static ulong last_ntp_sync = 0;
+		if (millis() - last_ntp_sync >= NTP_SYNC_INTERVAL * 1000UL) {
+			last_ntp_sync = millis();
+			os.status.req_ntpsync = 1;
+		}
 		perform_ntp_sync();
 
 		// check network connection
-		if (curr_time && (curr_time % CHECK_NETWORK_INTERVAL==0))  os.status.req_network = 1;
+		static ulong last_network_check = 0;
+		if (millis() - last_network_check >= CHECK_NETWORK_INTERVAL * 1000UL) {
+			last_network_check = millis();
+			os.status.req_network = 1;
+		}
 		check_network();
 
 		// check weather
@@ -1053,8 +1083,8 @@ void do_loop()
 #if defined(ESP8266)
 	if (millis() - last_debug_message >= 1000) {
 		last_debug_message = millis();
-		Serial.print("free memory: ");
-		Serial.println(ESP.getFreeHeap());
+		DEBUG_PRINT(F("free memory: "));
+		DEBUG_PRINTLN(ESP.getFreeHeap());
 	}
 #endif
 
@@ -1392,7 +1422,7 @@ void push_message(int type, uint32_t lval, float fval, const char* sval) {
 				}
 			}
 			if (ifttt_enabled) {
-				char name[STATION_NAME_SIZE];
+				char name[STATION_NAME_SIZE + 1];
 				os.get_station_name(lval, name);
 				sprintf_P(postval+strlen(postval), PSTR("Station %s closed. It ran for %d minutes %d seconds."), name, (int)fval/60, (int)fval%60);
 

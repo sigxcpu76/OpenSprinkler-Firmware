@@ -699,6 +699,14 @@ void OpenSprinkler::begin() {
 	else hw_type = HW_TYPE_RELAY8;
 
 	DEBUG_PRINT(F("HW TYPE:")); DEBUG_PRINTLN(hw_type);
+
+	if (hw_type == HW_TYPE_RELAY8) {
+		for(byte i = 0; i < RELAY8_PINS_ALL_SIZE; i++) {
+			pinMode(RELAY8_PINS_ALL[i], OUTPUT);
+			digitalWrite(RELAY8_PINS_ALL[i], LOW);
+			DEBUG_PRINT(F("Set pin mode")); DEBUG_PRINTLN(RELAY8_PINS_ALL[i]);
+		}
+	}
 	
 	// /* detect hardware revision type */
 	// if(detect_i2c(MAIN_I2CADDR)) {	// check if main PCF8574 exists
@@ -937,15 +945,8 @@ void OpenSprinkler::begin() {
 	// pinMode(PIN_BUTTON_3, INPUT_PULLUP);
 	
 	// detect and check RTC type
-	RTC.detect();
-
-	if (hw_type == HW_TYPE_RELAY8) {
-		for(byte i = 0; i < RELAY8_PINS_ALL_SIZE; i++) {
-			pinMode(RELAY8_PINS_ALL[i], OUTPUT);
-			digitalWrite(RELAY8_PINS_ALL[i], LOW);
-			DEBUG_PRINT(F("Set pin mode")); DEBUG_PRINTLN(RELAY8_PINS_ALL[i]);
-		}	
-
+	if (hw_type != HW_TYPE_RELAY8) {
+		RTC.detect();
 	}
 
 #else
@@ -1120,7 +1121,7 @@ void OpenSprinkler::apply_all_station_bits() {
 		// hence will be handled separately
 		latch_apply_all_station_bits(); 
 	} else if (hw_type == HW_TYPE_RELAY8) {
-		byte bits = station_bits[0];
+		byte bits = status.enabled ? station_bits[0] : 0;
 		for (byte i = 0; i < RELAY8_PINS_STATIONS_SIZE; i++) {
 			if (bits & 0x01) {
 				digitalWrite(RELAY8_PINS_STATIONS[i], HIGH);
@@ -1142,20 +1143,21 @@ void OpenSprinkler::apply_all_station_bits() {
 		}
 
 		// Handle driver board (on main controller)
+		byte sbits0 = status.enabled ? station_bits[0] : 0;
 		if(drio->type==IOEXP_TYPE_8574) {
 			/* revision 0 uses PCF8574 with active low logic, so all bits must be flipped */
-			drio->i2c_write(NXP_OUTPUT_REG, ~station_bits[0]);
+			drio->i2c_write(NXP_OUTPUT_REG, ~sbits0);
 		} else if(drio->type==IOEXP_TYPE_9555) {
 			/* revision 1 uses PCA9555 with active high logic */
 			uint16_t reg = drio->i2c_read(NXP_OUTPUT_REG);	// read current output reg value
-			reg = (reg&0xFF00) | station_bits[0]; // output channels are the low 8-bit
+			reg = (reg&0xFF00) | sbits0; // output channels are the low 8-bit
 			drio->i2c_write(NXP_OUTPUT_REG, reg); // write value to register
 		}
 			
 		// Handle expansion boards
 		for(int i=0;i<MAX_EXT_BOARDS/2;i++) {
-			uint16_t data = station_bits[i*2+2];
-			data = (data<<8) + station_bits[i*2+1];
+			uint16_t data = status.enabled ? station_bits[i*2+2] : 0;
+			data = (data<<8) + (status.enabled ? station_bits[i*2+1] : 0);
 			if(expanders[i]->type==IOEXP_TYPE_9555) {
 				expanders[i]->i2c_write(NXP_OUTPUT_REG, data);
 			} else {
@@ -1442,14 +1444,14 @@ void OpenSprinkler::set_station_data(byte sid, StationData* data) {
 
 /** Get station name */
 void OpenSprinkler::get_station_name(byte sid, char tmp[]) {
-	tmp[STATION_NAME_SIZE]=0;
-	file_read_block(STATIONS_FILENAME, tmp, (uint32_t)sid*sizeof(StationData)+offsetof(StationData, name), STATION_NAME_SIZE); 
+	file_read_block(STATIONS_FILENAME, tmp, (uint32_t)sid*sizeof(StationData)+offsetof(StationData, name), STATION_NAME_SIZE);
+	tmp[STATION_NAME_SIZE-1]=0;
 }
 
 /** Set station name */
 void OpenSprinkler::set_station_name(byte sid, char tmp[]) {
 	// todo: store the right size
-	tmp[STATION_NAME_SIZE]=0;
+	tmp[STATION_NAME_SIZE-1]=0;
 	file_write_block(STATIONS_FILENAME, tmp, (uint32_t)sid*sizeof(StationData)+offsetof(StationData, name), STATION_NAME_SIZE);
 }
 
@@ -1604,7 +1606,7 @@ byte OpenSprinkler::set_station_bit(byte sid, byte value) {
 /** Clear all station bits */
 void OpenSprinkler::clear_all_station_bits() {
 	byte sid;
-	for(sid=0;sid<=MAX_NUM_STATIONS;sid++) {
+	for(sid=0;sid<MAX_NUM_STATIONS;sid++) {
 		set_station_bit(sid, 0);
 	}
 }
@@ -1723,6 +1725,9 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 	#define HTTP_CONNECT_NTRIES 3
 	byte tries = 0;
 	do {
+		#if defined(ESP8266)
+		ESP.wdtFeed();
+		#endif
 		DEBUG_PRINT(F("host: " ));
 		DEBUG_PRINT(server);
 		DEBUG_PRINT(":");
@@ -1765,14 +1770,26 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 	}
 	memset(ether_buffer, 0, ETHER_BUFFER_SIZE);
 	uint32_t stoptime = millis()+timeout;
+	int pos = 0;
 
 #if defined(ARDUINO)
-	while(client->connected()) {
+	while(client->connected() || client->available()) {
+		#if defined(ESP8266)
+		ESP.wdtFeed();
+		#endif
 		yield();
 		int nbytes = client->available();
 		if(nbytes>0) {
-			if(nbytes>ETHER_BUFFER_SIZE) nbytes=ETHER_BUFFER_SIZE;
-			client->read((uint8_t*)ether_buffer, nbytes);
+			if (pos + nbytes >= ETHER_BUFFER_SIZE) nbytes = ETHER_BUFFER_SIZE - 1 - pos;
+			if (nbytes > 0) {
+				int r = client->read((uint8_t*)(ether_buffer + pos), nbytes);
+				if (r > 0) {
+					pos += r;
+					ether_buffer[pos] = 0;
+				}
+			} else {
+				break;
+			}
 		}
 		if(millis()>stoptime) {
 			client->stop();
@@ -1781,8 +1798,13 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 	}
 #else
 	while(client->connected()) {
-		int len=client->read((uint8_t *)ether_buffer, ETHER_BUFFER_SIZE);
-		if (len<=0) continue;
+		int max_read = ETHER_BUFFER_SIZE - 1 - pos;
+		if (max_read <= 0) break;
+		int r = client->read((uint8_t *)(ether_buffer + pos), max_read);
+		if (r > 0) {
+			pos += r;
+			ether_buffer[pos] = 0;
+		}
 		if(millis()>stoptime) {
 			client->stop();
 			return HTTP_RQT_TIMEOUT;
@@ -1854,6 +1876,7 @@ void OpenSprinkler::switch_httpstation(HTTPStationData *data, bool turnon) {
 	HTTPStationData copy;
 	// make a copy of the HTTP station data and work with it
 	memcpy((char*)&copy, (char*)data, sizeof(HTTPStationData));
+	copy.data[STATION_SPECIAL_DATA_SIZE - 1] = 0;
 	char * server = strtok((char *)copy.data, ",");
 	char * port = strtok(NULL, ",");
 	char * on_cmd = strtok(NULL, ",");
@@ -1863,7 +1886,7 @@ void OpenSprinkler::switch_httpstation(HTTPStationData *data, bool turnon) {
 	char *p = tmp_buffer;
 	BufferFiller bf = p;
 	
-	if(cmd==NULL || server==NULL) return; // proceed only if cmd and server are valid
+	if(cmd==NULL || server==NULL || port==NULL) return; // proceed only if cmd, server and port are valid
 	
 	bf.emit_p(PSTR("GET /$S HTTP/1.0\r\nHOST: $S\r\n\r\n"), cmd, server);
 

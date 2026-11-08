@@ -149,7 +149,7 @@ void OSMqtt::begin( const char * host, int port, const char * username, const ch
 	strncpy(_username, username, MQTT_MAX_USERNAME_LEN);
 	_username[MQTT_MAX_USERNAME_LEN] = 0;
 	strncpy(_password, password, MQTT_MAX_PASSWORD_LEN);
-	_username[MQTT_MAX_PASSWORD_LEN] = 0;
+	_password[MQTT_MAX_PASSWORD_LEN] = 0;
 	_enabled = enabled;
 
 	if (mqtt_client == NULL || os.status.network_fails > 0) return;

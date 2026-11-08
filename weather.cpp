@@ -110,6 +110,7 @@ static void getweather_callback(char* buffer) {
 				os.iopts[IOPT_TIMEZONE] = v;
 				os.iopts_save();
 				os.weather_update_flag |= WEATHER_UPDATE_TZ;
+				os.status.req_ntpsync = 1;
 			}
 		}
 	}
@@ -129,7 +130,7 @@ static void getweather_callback(char* buffer) {
 	}
 	
 	if(save_nvdata) os.nvdata_save();
-	write_log(LOGDATA_WATERLEVEL, os.checkwt_success_lasttime);
+	if(wt_errCode==0) write_log(LOGDATA_WATERLEVEL, os.checkwt_success_lasttime);
 }
 
 static void getweather_callback_with_peel_header(char* buffer) {
@@ -140,6 +141,9 @@ static void getweather_callback_with_peel_header(char* buffer) {
 int GetWeather1();
 void GetWeather() {
 	for(int i = 0; i < 3; i++) {
+		#if defined(ESP8266)
+		ESP.wdtFeed();
+		#endif
 		int ret = GetWeather1();
 		if (ret >= 0) {
 			return;
@@ -163,29 +167,20 @@ int GetWeather1() {
 								SOPT_WEATHER_OPTS,
 								(int)os.iopts[IOPT_FW_VERSION]);
 
-	char *src=tmp_buffer+strlen(tmp_buffer);
-	char *dst=tmp_buffer+TMP_BUFFER_SIZE-12;
-	
-	char c;
-	// url encode. convert SPACE to %20
-	// copy reversely from the end because we are potentially expanding
-	// the string size 
-	while(src!=tmp_buffer) {
-		c = *src--;
-		if(c==' ') {
-			*dst-- = '0';
-			*dst-- = '2';
-			*dst-- = '%';
-		} else {
-			*dst-- = c;
-		}
-	};
-	*dst = *src;
-
+	// url encode (convert SPACE to %20) directly into ether_buffer
 	strcpy(ether_buffer, "GET /");
-	strcat(ether_buffer, dst);
-	// because dst is part of tmp_buffer,
-	// must load weather url AFTER dst is copied to ether_buffer	
+	char *dst = ether_buffer + strlen(ether_buffer);
+	char *dst_end = ether_buffer + ETHER_BUFFER_SIZE - MAX_SOPTS_SIZE - 32;
+	for (const char *src = tmp_buffer; *src && dst < dst_end; src++) {
+		if (*src == ' ') {
+			*dst++ = '%';
+			*dst++ = '2';
+			*dst++ = '0';
+		} else {
+			*dst++ = *src;
+		}
+	}
+	*dst = 0;
 
 	// load weather url to tmp_buffer
 	char *host = tmp_buffer;
